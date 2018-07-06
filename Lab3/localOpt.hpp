@@ -2,8 +2,8 @@
 #define LOCAL_OPT_H
 
 #include <map>
-#include <string>
 #include <stack>
+#include <string>
 
 #include "llvmHeaders.hpp"
 #include "treeNode.hpp"
