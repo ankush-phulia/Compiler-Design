@@ -7,340 +7,296 @@
 #include "llvmHeaders.hpp"
 
 class treeNode {
-	public:
-		std::string type;
-		std::vector<treeNode*> children;
+   public:
+    std::string type;
+    std::vector<treeNode *> children;
 
-		virtual VALUE_TYPE codegen();
+    virtual VALUE_TYPE codegen();
 
-		treeNode() {
-			type = "";
-		}
+    treeNode() { type = ""; }
 
-		treeNode(std::string n) {
-			type = n;
-		}
+    treeNode(std::string n) { type = n; }
 
-		treeNode(treeNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    treeNode(treeNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		treeNode(treeNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    treeNode(treeNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class DeclNode : public treeNode {
-	public:
-		VALUE_TYPE codegen(bool isGlobalContext);
+   public:
+    VALUE_TYPE codegen(bool isGlobalContext);
 
-		DeclNode() {
-			type = "";
-		}
+    DeclNode() { type = ""; }
 
-		DeclNode(std::string n) {
-			type = n;
-		}
+    DeclNode(std::string n) { type = n; }
 
-		DeclNode(DeclNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    DeclNode(DeclNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		DeclNode(DeclNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    DeclNode(DeclNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class InitDeclNode : public treeNode {
-	public:
-		VALUE_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
+   public:
+    VALUE_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
 
-		InitDeclNode() {
-			type = "";
-		}
+    InitDeclNode() { type = ""; }
 
-		InitDeclNode(std::string n) {
-			type = n;
-		}
+    InitDeclNode(std::string n) { type = n; }
 
-		InitDeclNode(InitDeclNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    InitDeclNode(InitDeclNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		InitDeclNode(InitDeclNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    InitDeclNode(InitDeclNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class VariableNode : public treeNode {
-	public:
-		VALUE_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
+   public:
+    VALUE_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
 
-		VariableNode() {
-			type = "";
-		}
+    VariableNode() { type = ""; }
 
-		VariableNode(std::string n) {
-			type = n;
-		}
+    VariableNode(std::string n) { type = n; }
 
-		VariableNode(VariableNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    VariableNode(VariableNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		VariableNode(VariableNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    VariableNode(VariableNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class PointerNode : public treeNode {
-	public:
-		VALUE_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
+   public:
+    VALUE_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
 
-		PointerNode() {
-			type = "";
-		}
+    PointerNode() { type = ""; }
 
-		PointerNode(std::string n) {
-			type = n;
-		}
+    PointerNode(std::string n) { type = n; }
 
-		PointerNode(PointerNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    PointerNode(PointerNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		PointerNode(PointerNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    PointerNode(PointerNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class ArrayNode : public treeNode {
-	public:
-		VALUE_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
+   public:
+    VALUE_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
 
-		ArrayNode() {
-			type = "";
-		}
+    ArrayNode() { type = ""; }
 
-		ArrayNode(std::string n) {
-			type = n;
-		}
+    ArrayNode(std::string n) { type = n; }
 
-		ArrayNode(ArrayNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    ArrayNode(ArrayNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		ArrayNode(ArrayNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    ArrayNode(ArrayNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class FunctionNode : public treeNode {
-	public:
-		FUNCTION_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
+   public:
+    FUNCTION_TYPE codegen(bool isGlobalContext, DATATYPE_TYPE type);
 
-		FunctionNode() {
-			type = "";
-		}
+    FunctionNode() { type = ""; }
 
-		FunctionNode(std::string n) {
-			type = n;
-		}
+    FunctionNode(std::string n) { type = n; }
 
-		FunctionNode(FunctionNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    FunctionNode(FunctionNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		FunctionNode(FunctionNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    FunctionNode(FunctionNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class ParamNode : public treeNode {
-	public:
-		int isVariadic;
+   public:
+    int isVariadic;
 
-		// VALUE_TYPE codegen() override;
+    // VALUE_TYPE codegen() override;
 
-		ParamNode() {
-			type = "";
-			isVariadic = 0;
-		}
+    ParamNode() {
+        type = "";
+        isVariadic = 0;
+    }
 
-		ParamNode(std::string n) {
-			type = n;
-			isVariadic = 0;
-		}
+    ParamNode(std::string n) {
+        type = n;
+        isVariadic = 0;
+    }
 
-		ParamNode(ParamNode &t) {
-			type = t.type;
-			children = t.children;
-			isVariadic = 0;
-		}
+    ParamNode(ParamNode &t) {
+        type = t.type;
+        children = t.children;
+        isVariadic = 0;
+    }
 
-		ParamNode(ParamNode *t) {
-			type = t->type;
-			children = t->children;
-			isVariadic = 0;
-		}
+    ParamNode(ParamNode *t) {
+        type = t->type;
+        children = t->children;
+        isVariadic = 0;
+    }
 
-		ParamNode(treeNode *t) {
-			type = t->type;
-			children = t->children;
-			isVariadic = 0;
-		}
+    ParamNode(treeNode *t) {
+        type = t->type;
+        children = t->children;
+        isVariadic = 0;
+    }
 };
 
 class BranchNode : public treeNode {
-	public:
-		VALUE_TYPE codegen(DATATYPE_TYPE retType);
+   public:
+    VALUE_TYPE codegen(DATATYPE_TYPE retType);
 
-		BranchNode() {
-			type = "";
-		}
+    BranchNode() { type = ""; }
 
-		BranchNode(std::string n) {
-			type = n;
-		}
+    BranchNode(std::string n) { type = n; }
 
-		BranchNode(BranchNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    BranchNode(BranchNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		BranchNode(BranchNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    BranchNode(BranchNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 
-		BranchNode(treeNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    BranchNode(treeNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class FuncBlockNode : public treeNode {
-	public:
-		VALUE_TYPE codegen(DATATYPE_TYPE retType, VALUE_TYPE funcHeader);
+   public:
+    VALUE_TYPE codegen(DATATYPE_TYPE retType, VALUE_TYPE funcHeader);
 
-		FuncBlockNode() {
-			type = "";
-		}
+    FuncBlockNode() { type = ""; }
 
-		FuncBlockNode(std::string n) {
-			type = n;
-		}
+    FuncBlockNode(std::string n) { type = n; }
 
-		FuncBlockNode(FuncBlockNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    FuncBlockNode(FuncBlockNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		FuncBlockNode(FuncBlockNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    FuncBlockNode(FuncBlockNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 
-		FuncBlockNode(treeNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    FuncBlockNode(treeNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class CondBlockNode : public treeNode {
-	public:
-		VALUE_TYPE codegen(DATATYPE_TYPE retTypeIfReqd, BLOCK_TYPE afterDest); 
+   public:
+    VALUE_TYPE codegen(DATATYPE_TYPE retTypeIfReqd, BLOCK_TYPE afterDest);
 
-		CondBlockNode() {
-			type = "";
-		}
+    CondBlockNode() { type = ""; }
 
-		CondBlockNode(std::string n) {
-			type = n;
-		}
+    CondBlockNode(std::string n) { type = n; }
 
-		CondBlockNode(CondBlockNode &t) {
-			type = t.type;
-			children = t.children;
-		}
+    CondBlockNode(CondBlockNode &t) {
+        type = t.type;
+        children = t.children;
+    }
 
-		CondBlockNode(CondBlockNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    CondBlockNode(CondBlockNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 
-		CondBlockNode(treeNode *t) {
-			type = t->type;
-			children = t->children;
-		}
+    CondBlockNode(treeNode *t) {
+        type = t->type;
+        children = t->children;
+    }
 };
 
 class ConstNode : public treeNode {
-	public:
-		std::string name;
-		int ival;
-		float fval;
-		std::string sval;
+   public:
+    std::string name;
+    int ival;
+    float fval;
+    std::string sval;
 
-		VALUE_TYPE codegen() override;
+    VALUE_TYPE codegen() override;
 
-		ConstNode() {
-			type = "Const";
-		}
+    ConstNode() { type = "Const"; }
 
-		ConstNode(int i) {
-			type = "Const";
-			name = "INT";
-			ival = i;
-		}
+    ConstNode(int i) {
+        type = "Const";
+        name = "INT";
+        ival = i;
+    }
 
-		ConstNode(float f) {
-			type = "Const";
-			name = "FLOAT";
-			fval = f;
-		}
+    ConstNode(float f) {
+        type = "Const";
+        name = "FLOAT";
+        fval = f;
+    }
 
-		// ConstNode(char* str) {
-		// 	type = "Const";
-		// 	name = "STRING";
-		// 	sval = std::to_string(str);
-		// }
+    // ConstNode(char* str) {
+    // 	type = "Const";
+    // 	name = "STRING";
+    // 	sval = std::to_string(str);
+    // }
 
-		ConstNode(std::string s) {
-			type = "Const";
-			name = "CHAR*";
-			sval = s;
-		}
+    ConstNode(std::string s) {
+        type = "Const";
+        name = "CHAR*";
+        sval = s;
+    }
 };
 
 class IdentNode : public treeNode {
-	public:
-		std::string name;
+   public:
+    std::string name;
 
-		VALUE_TYPE codegen() override;
+    VALUE_TYPE codegen() override;
 
-		IdentNode() {
-			type = "Ident";
-		}
+    IdentNode() { type = "Ident"; }
 
-		IdentNode(std::string n) {
-			type = "Ident";
-			name = n;
-		}
+    IdentNode(std::string n) {
+        type = "Ident";
+        name = n;
+    }
 };
 
 #endif
