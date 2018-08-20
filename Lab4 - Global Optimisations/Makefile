@@ -1,15 +1,16 @@
 # USES llvm-3.8.0
+INCLUDES = -I/usr/lib/llvm-3.8/include -I gnu/ -I include/
+CFLAGS = -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
+CXXFLAGS =  -fPIC -fvisibility-inlines-hidden -pedantic -std=c++11 -ffunction-sections -fdata-sections -O2 -g -DNDEBUG  -fno-exceptions -D_GNU_SOURCE 
 
-CXXFLAGS = -I/usr/lib/llvm-3.8/include -fPIC -fvisibility-inlines-hidden -pedantic -std=c++11 -ffunction-sections -fdata-sections -O2 -g -DNDEBUG  -fno-exceptions -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
+cc: src/cc.cpp gnu/c.tab.cpp gnu/c.lex.cpp src/semanticAnalysis.cpp src/localOpt.cpp src/optPasses.cpp src/codeGeneration.cpp 
+	@clang++ -g gnu/c.tab.cpp gnu/c.lex.cpp src/semanticAnalysis.cpp src/localOpt.cpp src/optPasses.cpp src/codeGeneration.cpp src/cc.cpp -lm -ll -lfl $(INCLUDES) $(CXXFLAGS) $(CFLAGS) `llvm-config --ldflags --system-libs --libs all` -o $@
 
-cc: cc.cpp c.tab.cpp c.lex.cpp semanticAnalysis.cpp localOpt.cpp optPasses.cpp codeGeneration.cpp 
-	@clang++ -g c.tab.cpp c.lex.cpp semanticAnalysis.cpp localOpt.cpp optPasses.cpp codeGeneration.cpp cc.cpp -lm -ll -lfl $(CXXFLAGS) `llvm-config --ldflags --system-libs --libs all` -o $@
+gnu/c.tab.cpp gnu/c.tab.hpp: gnu/c.y
+	@bison -o gnu/c.tab.cpp -d gnu/c.y
 
-c.tab.cpp c.tab.hpp: c.y
-	@bison -o c.tab.cpp -d c.y
-
-c.lex.cpp: c.l c.tab.hpp
-	@flex -o c.lex.cpp -l c.l
+gnu/c.lex.cpp: gnu/c.l gnu/c.tab.hpp
+	@flex -o gnu/c.lex.cpp -l gnu/c.l
 
 tests: cc
 	@echo "TEST CASE 1:"
@@ -67,4 +68,4 @@ tests: cc
 	@echo "\n"
 
 clean::
-	rm -f c.tab.cpp c.tab.hpp c.lex.cpp cc c.output code.txt generated_code.txt ssa.txt optimised_code.txt
+	rm -f gnu/c.tab.cpp gnu/c.tab.hpp gnu/c.lex.cpp cc c.output code.txt generated_code.txt ssa.txt optimised_code.txt
