@@ -420,3 +420,95 @@
     * If the grammar is not LL(1), the parsing table will have more than one entry in at least one cell. An ambiguous, left-recursive, non left-factored grammar cannot be LL(1)
 
 ***
+
+  #### Bottom-Up Parsing - Shift-Reduce
+
+* Parse tree constructed in a bottom-up fashion. It is more general than top-down(deterministic) but just as efficient, hence, used by most parser generation tools
+
+* Does not have problems with left-recursive or non left-factored grammars
+
+* Unlike recursive descent, it traces a right-most derivation - produce a right-most non-terminal at each step
+
+  * Consequently, at a state $$\alpha \beta w$$, and with next step $$X \rightarrow \beta$$, $$w$$ is a string of terminals
+  * The string has two parts, left with terminals and non-terminal, right with yet unexamined terminals, e.g. $$\alpha X|w$$
+  * Two kinds of moves - *reduce*(inverted production, e.g. for $$A \rightarrow xy$$, $$CBxy|ijk \rightarrow CBA|ijk$$) and *shift*(move | to the right by one char)
+
+* The state $$CBx|yijk$$ can be modelled using a stack - 
+
+  * The left string $$CBx$$ is in the stack, | signifying the top of it
+  * $$ijk$$ is the input not yet read from the input tape
+  * The operations are modelled as - 
+    * *Shift* pushes a terminal onto the stack, i.e. $$CBx|yijk \rightarrow CBxy|ijk$$ pushes $$y$$
+    * *Reduce* pops of a number of symbols from the top of the stack, reduces them according to production rule, and pushes result back onto the stack, i.e. for the rule mentioned earlier, the stack goes(top-to-bottom), $$CBxy \rightarrow CBA$$
+
+  ##### Shift-Reduce Conflicts
+
+  * In a given state, more than one action may lead to a valid phrase
+    * If at any point, it is legal to both shift and reduce, there is a *shift-reduce* conflict.
+    * If there are two reductions possible, it is a *reduce-reduce* conflict. These are always bad and usually indicate serious problems with the grammar
+  * To address conflicts, grammar must be re-written or a precedence order specified
+  * Intuitively, reduce is preferred over shift when the result can be further reduced $$S$$
+
+  ##### Handles
+
+  * A handle is a reduction that allows further reductions back to the start state, thus reduction should happen only at handles
+
+  * During shift-reduce parsing, handles can appear only at the top of the stack, never inside
+
+    * Trivially true for empty stack
+    * Immediately after reduction(which happened at a handle), the right-most non-terminal at the top of the stack and the next handle must be to its right(as its the right-most derivation - proof by contradiction) - can reach it using shift(s)
+    * Since handles always at the top, reduction always at the top of the stack
+
+    ###### Recognizing Handles - Viable Prefixes
+
+  * No algorithm for an arbitrary grammar; employ heuristics
+
+  * For certain grammar these heuristics always work, $$LR(0) \subset SLR(k) \subset LALR(k) \subset LR(k) \subset Unambiguous$$ $$CFLs \subset CFLs$$, LALR(k) are general enough
+
+  * $$\alpha$$ is said to be a viable prefix for a string $$s$$ if $$\exists$$ a valid right-most derivation $$S \rightarrow^* \alpha\omega \rightarrow^* s$$. In other words, $$\exists$$ a state $$\alpha | \omega$$ state during parsing - $$\alpha$$ on the stack, a portion of $$\omega$$ that can be looked-ahead at
+
+    * A viable-prefix doesn't extend past the right-end of the handle. Its a *prefix of a handle*
+    * As long as the prefix on the stack is viable, no parsing error has been detected
+
+  * (LR(0))Items - production with a "." somewhere in the RHS; e.g. $$X \rightarrow \alpha$$, can be $$X \rightarrow .\alpha$$. For $$\epsilon$$ productions like $$ X \rightarrow \alpha$$, only one item, $$X \rightarrow .$$ possible
+
+    * A prefix can be viable if it had complete RHS for a production
+    * A stack may have many prefixes of RHS's. Let stack be $$p_1, p_2, ..., p_{n -1}, p_n$$, where $$p_i$$ is the prefix of RHS of $$X_i \rightarrow \alpha_i$$
+      * $$p_i$$ should eventually reduce to $$X_i$$
+      * The missing part of $$\alpha_{i - 1}$$ starts with $$X_i$$, i.e. $$\exists$$ rules $$X_{i -1} \rightarrow p_{i -1}X_i\beta$$, $$X_{i -2} \rightarrow p_{i -2}X_{i-1}\gamma$$, etc.
+      * Recursively, $$p_{k+1}p_{k+2}...p_{n - 1}p_n$$ reduces to the missing part of $$\alpha_k$$
+    * For any grammar, the set of viable prefixes is a regular language. The regular language represents the language formed by concatenating zero or more prefixes of the productions (items)
+      * Conversely if a string is parsable bottom-up, then every stack state is also a viable prefix
+
+  \<ADD LR and LALR parsing here\>
+
+  ***
+
+  #### Error Handling
+
+  * A parser must detect invalid programs and translate only the valid ones
+
+  * Error handlers should report errors accurately and clearly, recover from errors quickly and not slow down compilation of valid code
+
+  * Error handling modes for a parser -
+
+    - Panic mode - when an error is found, discard tokens till a clear role is found, after which continue as normal
+
+      - Can look for *synchronising tokens* like the EOS(;) in C, or the next integer(for arithmetic expressions), etc.
+
+    - Error production - use a special error terminator, which also describes how much input to skip. Specifies common mistakes in the grammar
+
+      > $$ E \rightarrow E + E | E * E| (E)| int| error$$ $$ int| (error)$$ 
+
+      - In the above case, tokens after the error are skipped till an int is found, or inside a parenthesised expression, discard everything till the closing bracket
+      - Complicates the grammar and promotes misktakes (by making syntax less restrictive)
+      - Commonly compilers give warnings about lesser mistakes
+
+    - Error correction - find a "nearby" program, using some notion of minimal *edit distance*
+
+      - Try token insertions/deletion upto a certain distance exhaustively
+      - Hard to implement, signifcant cost to compilation time, "nearby" may not be intended program anyway
+      - Commonly compilers give suggestions like in OCaml, SML, etc
+      - PL/C was an error-correcting compiler, motivated by the fact that for very slow compilation times, try to find as many errors in one go
+
+***
