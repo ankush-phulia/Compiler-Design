@@ -512,3 +512,53 @@
       - PL/C was an error-correcting compiler, motivated by the fact that for very slow compilation times, try to find as many errors in one go
 
 ***
+
+
+
+### Semantic Analysis
+
+* Understand the *meaning* of the program, in order to catch errors missed by parsing, which does not take into account the *context* required for many constructs
+
+#### Scope Checking
+
+* The scope of an identifier is the portion of the program in which it is accessible. The same identifier may refer to different things in different parts of the program. Different scopes for same name don't overlap
+
+* Scope checking aims to map identifier use to its declaration
+
+* Two options for scoping - *static* (depends only on program text/compile time), like C, or *dynamic* (depends on program behaviour/runtime), like early LISP
+
+  * C has identifier bindings introduced by -
+    * Function definitions (methods names; top-level only)
+    * Function argument declarations (objects of certain types)
+    * Variable declarations (objects of certain types)
+    * Struct definitions (type/class names)
+    * Struct field definitions (objects)
+    * Typedefs (type names)
+  * A dynamically-scoped variable refers to the closest enclosing binding in the execution of the program
+  * In C/C++, not all identifiers follow most-closely nested rule
+    * Functions definitions can't be nested in C
+    * Forward declarations for functions and variables using `extern`
+    * Use of member functions before declaration/definition in C++
+    * Use of member field in method before definition in C++
+    * Identifiers can be overridden in same scope or in different nested scope
+
+  ##### Symbol Table
+
+  * Generally semantic analysis done as a recursive descent on AST. Need to know which identifiers are defined for the current subtree(s). Thus a data structure that tracks the current bindings of the identifiers, i.e. the *symbol table*, is maintained
+
+  * On entry to a new scope/subtree, new declarations are added to the symbol table, and after processing, on exit, they are removed, restoring the old declarations
+
+  * Usually implemented as a stack of scopes - 
+
+    ```C
+    void enter_scope();    // start a new nested scope
+    bool check_scope(x);   // true if x defined in the top scope
+    symbol find_symbol(x); //search scopes stack starting from top, for x
+    void add_symbol(x);    // add a symbol to the top scope
+    void exit_scope();     // exit current scope
+    ```
+
+  * For forward declarations, C++ style use-before-definitions, classes, etc. more than one pass over AST required (pass 1 - gather all names, pass 2 - check)
+
+***
+
