@@ -285,3 +285,138 @@
 
     * Ambiguity may result in a simple, more natural grammar. Thus many tools use an ambiguous grammar paired with a precedence order of operations (declaration of associativity and priority). The parser uses these to decide which move to take in case of ambiguity
 
+
+***
+
+  #### Top-Down Parsing - Recursive Descent
+
+  * Parse tree constructed in a top-down fashion, starting from the top-level non-terminal
+
+  * Rules for the non-terminals are tried in order, as the input(tokens) is walked through left to right. 
+
+    * Can't tell with non-terminals, but as soon as terminal produced, check against input token and advance the pointer on the input token stream if there is a match
+    * In case of mismatch or no-match, backtrack to the last production with more options and explore(like a DFS), till all of the input is produced
+
+    ##### Implementation
+
+    ```C
+    bool term(TOKEN tok) {  //check for a match of a given token terminal
+      return *next++ == tok; //always increment the next pointer
+    }
+    bool Sn(); //return true if input matches nth production of S
+    bool S(); //return true if input matches any production of S
+    ```
+
+    For the calculator [grammar](#+*G), the functions are like
+
+    ```C
+    bool E1() { return T(); } 							  //E -> T 
+    bool E2() { return T() && term(PLUS) && E(); } 	  		//E -> T + E
+    bool E() { //for the non-terminal E
+      TOKEN *save = next;
+      // reset next(backtrack) and try productions - IN ORDER
+      // resetting not really needed for the first production
+      return (next = save, E1()) || (next = save, E2());
+    }
+
+    bool T1() { return term(INT); } //Check if *next points to "INT"/"Id"
+    bool T2() { return term(INT) && term(TIMES) && T(); } 	//T -> Id * T
+    bool T3() { return term(LPar) && E() && term(RPar); } 	//T -> (E)
+    bool T4() { return T3() && term(TIMES) && T(); } 	    //T -> (E) * T
+    bool T() { //for the non-terminal T
+      TOKEN *save = next;
+      return (next = save, T1()) || (next = save, T2()) || (next = save, T3()) || (next = save, T4());
+    }
+    ```
+
+    * Note that the first rule that returns true will cause a return due to semantics of `||` , and others wont be checked (can use this for precedence of rules for a non-terminals)
+    * Each `Ei, Ti` increment `next`, while `E` and `T` save the original `next`(in `save`), for backtracking
+    * To start parsing, initialise `next` to the first token, and simply invoke `E()`
+
+    ##### Issues with Left Recursion 
+
+    * On rules like $$S \rightarrow S$$ $$\alpha$$, parser goes into infinite loop on *any* input
+    * Rules like $$S \rightarrow S$$ $$\alpha | \beta$$ produce strings starting with $$\beta$$, followed by $$\alpha$$s in a right-to-left fashion, which doesn't work with the left-to-right top-down parsing
+    * By stratification, the problem may be fixed. In general, the left recursive grammar rule $$S \rightarrow S$$ $$\alpha_1|S$$ $$\alpha_2|S$$ $$\alpha_3|S$$ $$\alpha_4|...S$$ $$\alpha_n|\beta_1|\beta_2|...|\beta_m$$, can be factored to  $$S \rightarrow $$ $$\beta_1$$ $$S'|$$ $$\beta_2$$ $$S'|$$ $$... |$$ $$\beta_m$$ $$S'$$ and $$S' \rightarrow$$ $$\alpha_1$$ $$S'|$$ $$\alpha_2$$ $$S'|$$ $$... |$$ $$\alpha_n$$ $$S'|\epsilon$$ 
+    * Thus prior to implementing recursive descent, left-recursion must be eliminated
+      * Can be done automatically (Dragon book for general algorithm)
+        * Mostly done by hand, to specify the semantics associated with the productions e.g. GCC
+    ##### Predictive Parsing
+
+    * Normally, the recursive descent can be exponential - due to backtracking
+
+    * Keep a look-ahead of a few tokens to "predict" which token to use, pruning the tree of possible productions. For a maximum look-ahead of k, left-to-right, the grammar is called LL(k); commonly k = 1
+
+    * For LL(1), at every step there is at most one choice for possible production
+
+    * The calculator [grammar](#+*G) is not LL(1) as we cannot chose between the productions of T or E(two productions start with T) with one token look-ahead, regardless of non-terminals or terminals produced
+
+    * Left Factoring grammars - factor out a common prefix into a single production
+
+      * > $$X \rightarrow +$$ $$E | \epsilon$$
+        >
+        > $$T \rightarrow id $$ $$Y | (E)$$ $$Y$$
+        >
+        > $$Y \rightarrow * $$ $$T | \epsilon$$
+
+      * Left factoring delays the decision on which production to use and in a way, artificially increases the look-ahead; we decide which production to use *after* we have seen $$T/id$$
+
+      * By constructing the LL(1) parsing table, the parsing algorithm is simple - for the left-most non-terminal S, we look at the next input token a. Then, we simply choose the production rule at ($$S, a$$) in the table
+
+      * Instead of using recursive functions, maintain a stack of the frontier of the parse tree. The top of the stack is the leftmost pending terminal or non-terminal. Terminals in the stack are yet to be matched in the input. Non-terminals in the stack are yet to be expanded
+
+      * Reject on reaching the error state, accept on end of input or empty stack (PDA!)
+        ```C
+        init stack = <S, $$>;
+        init next*;
+        while (!stack.isEmpty()) {
+          if (stack.top in Non-Terminals) {
+            if (T[stack.top, *next] = Y1Y2...Yn) {
+              stack.pop();
+              stack.push(Y1Y2...Yn);
+            }
+            else error;
+          }
+          else { // terminal symbol at the top
+            if (stack.top == *next++) stack.pop();
+            else error;
+          }
+        }
+        ```
+      ###### Constructing LL(1) parsing tables
+
+    * Fixed points - given a partial order and a set of monotonic equations, initialise all variables to the top of the order, and relax them minimally, iteratively, so that all the equations can be satisfied. 
+
+      * Final values of the variables are the fixed points
+      * If the order is finite, only finite number of iterations required
+
+    * For parsing, we can represent sets of symbols as points, and edges between sets if one is a strict subset of the other
+
+      * The "height" is the total number of tokens
+      * Fixed point computation is simply a search on this graph for a vertex that satisfies all the equations
+
+    * $$First(X) = \{t | X \rightarrow^* t \alpha\} \bigcup \{\epsilon | X \rightarrow^* \epsilon\}$$ - if $$X$$ can derive $$t$$ in the first position
+
+      * Algorithmically - fixed point computation (trivially the set of all tokens)
+        * $$\forall$$ terminals $$t$$, $$First(t) = \{t\}$$
+        * $$\epsilon \in First(X)$$ if $$X \rightarrow \epsilon$$ or $$X \rightarrow X_1X_2...X_n$$ & $$\forall i,\epsilon \in First(X_i)$$
+        * $$First(\alpha) \subseteq First(X)$$ if $$X \rightarrow X_1X_2...X_n\alpha$$ & $$\forall i,\epsilon \in First(X_i)$$
+
+    * $$Follow(X) = \{t | S \rightarrow^* \beta X t \delta\} $$ - if $$t$$ after $$X$$ in *any* derivation
+      * Algorithmically, again fixed point computation (trivially the set of all tokens)
+        * '\$'(EOF) $$\in$$ $$Follow(S)$$
+        * $$\forall X \rightarrow \alpha X' \beta$$, $$First(\beta) - \{\epsilon\} \subseteq Follow(X')$$
+        * $$\forall X \rightarrow \alpha X' \beta$$, $$Follow(X) \subseteq Follow(X')$$ if $$\epsilon \in First(\beta)$$
+
+    * For $$A \rightarrow \alpha$$, T($$A$$, $$t$$) = $$\alpha$$ if 
+      * $$\alpha \rightarrow^* t \beta$$, i.e. t $$\in$$ $$First(\alpha)$$
+      * $$\alpha \rightarrow^* \epsilon$$ and $$S \rightarrow^* \beta A t \delta$$ - when A is in stack, $$t$$ in input but $$A$$ can't derive $$t$$, the only option is to get rid of $$A$$ by deriving $$\epsilon$$ from it. This only works if there is a derivation in which $$t$$ follows $$A$$, i.e. $$t$$ $$\in$$ $$Follow(A)$$
+
+    * For each production $$A \rightarrow \alpha$$, $$\forall$$ terminals $$t \in First(\alpha)$$, T($$A$$, $$t$$) = $$\alpha$$
+
+      - If $$\epsilon \in First(\alpha)$$ then $$\forall t \in Follow(A)$$, T($$A$$, $$t$$) = $$\alpha$$
+      - If $$\epsilon \in First(\alpha)$$ then $$\forall \$ \in Follow(A)$$, T($$A$$, \$) = $$\alpha$$
+
+    * If the grammar is not LL(1), the parsing table will have more than one entry in at least one cell. An ambiguous, left-recursive, non left-factored grammar cannot be LL(1)
+
+***
