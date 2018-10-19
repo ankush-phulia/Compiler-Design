@@ -562,3 +562,255 @@
 
 ***
 
+
+
+#### Type Checking
+
+* A type is generally a set of values (domain), associated with a set of operations possible on those values. The goal of type checking is to ensure that operations are used with correct types, to enforce the intended interpretation of values. 
+
+* Types restrict legal programs further, by restricting operations between identifiers
+
+  * Assembly has no type-system, so anything can be operated with anything
+  * OCaml has a strict typing system with immutable variables (unlike C's mutable ones)
+
+* Tradeoff - catching common mistakes (like multiplication of strings) vs making programs more restricted (may even lose out on optimisation). 
+
+  * Can also offload the entire responsibility onto the programmer
+  * Undefined behaviour - unchecked things at compile time, that may cause the program to be undefined at run time, e.g. access out of array bounds - segfault in C
+
+* Three kind of languages based on *when* type checking is done
+
+  - Statically typed: Done as part of compilation, e.g. C, Java
+  - Dynamically typed: Done as part of program execution, e.g. Lisp, Python, Perl
+  - Untyped: No type checking. All strings in the language are valid, e.g., machine code
+
+* Type *checking* vs. *inference* - verifying fully typed programs, with all types available vs. deducing and filling in missing type information. In C, user declares types for identifiers, and the types for expression are inferred
+
+  ##### Inference Rules
+
+  * Given a set of hypotheses, draw a conclusion/inference about a type
+  * $$\frac{\vdash hypothesis_1, hypothesis_2, ..., hypothesis_n}{\vdash conclusion}$$, if all hypotheses are provable with no assumptions, then conclusion can be proven without any assumptions
+  * These rules provide templates, filling which can lead to complete typing for expressions, e.g. $$\frac{\vdash \, e1:int,\, e2:int}{\vdash (e1 + e2 ): int}$$, where $$+$$ can be replaced with any integer operation
+    * Type checking involves building a proof tree, in a bottom-up fashion
+    * This corresponds to induction on the structure of the AST, where one proof rule is used for each node
+    * For a given node, the hypotheses are the proofs of each of the subexpressions, the conclusion is the type, etc. of the node/expression at the node
+  * A type system is sound if $$\vdash e : T$$, implies, $$e$$ evaluates to a value of type $$T$$. All rules should not only be sound, but also precise
+  * `void` is always assumed to be a sub-type of every type
+
+  ##### Type Environments
+
+  * A type environment gives types for *free* variables, used when a local, structural rule does not carry sufficient information to give type to an expression, e.g. variable ref.
+
+  * One solution is to encode more information in the rules, maintaining a type environment - a function from object identifiers to types
+
+  * A variable is free if it is not defined within the expression, bound if declared/defined
+
+  * Thus the rule template now becomes $$\frac{O \,\vdash hypothesis_1, hypothesis_2, ..., hypothesis_n}{O \, \vdash conclusion}$$, i.e. assuming that the free variables are typed according to $$O$$, it is provable..., etc.
+
+    * Now, the rule for variable reference goes like $$\frac{\vdash\, O(x) = T}{O \, \vdash \, x : T}$$
+    * Similarly for variable declaration, $$\frac{O[T_0/x] \,\vdash \,e_1:T_1}{O \, \vdash\, \{T_0\, x;\, e_1\} : T_1}$$, where $$O[T_0/x](x)=T_0$$ and $$O[T_0/x](y) = O(y)$$. This corresponds to the fact that in a new scope, new assumptions are added (about $$x$$ in this case), which are removed on exit
+
+  * The type environment is kept in the symbol table - 
+
+    * The type environment gives types to the free identifiers in the *current scope*
+    * The type environment is passed down the AST from the root towards the leaves
+      * To get the type of the new scope, appropriate rules are applied
+      * Using the variable declaration rule, the type environment is updated for the new scope and passed to children (top-down)
+    * Types are computed up the AST from the leaves towards the root (bottom-up)
+
+    ###### Sub-Typing
+
+    * Define the $$\leq$$ relation on classes such that given classes $$X, Y and\, Z$$
+
+      * Reflexivity - $$X \leq X$$
+      * Anti-symmetry - $$X \leq Y$$ $$\iff X$$ inherits from $$Y$$, and $$Y \nleq X$$
+      * Transitivity - $$X \leq Y \, \and \, Y \leq Z  \implies X \leq Z$$
+
+    * This gives us improved variable definition and assignment rules
+
+      <p style="text-align: center;"> $$\frac{O \, \vdash \,e_0:T_0 \\ O[T_0/x] \,\vdash \,e_1:T_1 \\ T_0 \leq T}{O \, \vdash\, \{T\, x=e_0;\, e_1\} : T_1}$$ and  $$\frac{O\, \vdash\,  x:T_0 \\ O\, \vdash\, e_1:T_1\\ T_1 \leq T_0}{O \, \vdash\, x=e_1 : T_1}$$</p>
+
+    * Interesting contrast of typing of If-Then-Else vs the ternary operator `?` - 
+
+      * The former can either make two rules depending on the condition being true or false, or make the whole thing type as void
+      * For the latter, LUB of types of both branches taken and returned
+
+    * For function dispatch, maintain a mapping of function-return type-argument types, with the last argument being return type. Further, when called from an object $$e_0$$, the type of object in which the expression is, needs to be known ($$T$$)
+
+      <p style="text-align: center;">$$\frac{O\, \vdash\, \forall i, \, e_i:T_i\\ O\, \vdash \, C::f:(T_1', ..., T_n', T_{n +1}) \\ T_0 \lt T \\ \forall i, \,T_i \leq T_i'}{O \, \vdash\, (e_0@T).f(e_1, e_2, ..., e_n) : T_{n+1}}$$</p>
+
+  * Implementation of type check rules is pretty straightforward, e.g. for variable def.
+
+    ```C
+    type TypeCheck(env Environment, node { T x = e0; e1 }) {
+      type T0 = TypeCheck(Environment, e0);
+      type T1 = TypeCheck(Environment.add(x:T0), e1);
+      if (Check subtype(T0,T1))
+      	return T1;
+    }
+    ```
+
+		### 		Static vs. Dynamic Typing
+
+- - Type checking at compile vs run time
+
+  - Static typing proponents say:
+
+    - Static checking catches many programming errors at compile time
+    - Avoids overhead of runtime checks
+    - More expressive type system constructs like templating to get around rigidity
+
+  - Dynamic typing proponents say:
+
+    - Static type systems are restrictive. Restricts the programs that you can write (even though they may be well-typed at runtime)
+      - Array de-reference quite hard to verify statically. Java decides to use runtime checks (dynamic type-checking).
+    - Rapid prototyping difficult within a static type system
+
+  - Soundness theorem - for all expressions in a well-typed program, the static and dynamic types should be the same
+
+    - In case of languages with subtyping, $$\forall{E},\,{Type_{dynamic}(E) <= Type_{static}(E)}$$
+    - The static type system will not accept any incorrect program that will not pass the dynamic type check of equal power.
+      - A sound static type check for array-bounds would reject incorrect programs, but it will also reject a few more that will actually pass the dynamic type check
+    - Soundness of static type system - all dynamically-type-incorrect programs will be rejected. Ensured by ensuring that static type is a super-type of dynamic type.
+      - A trivial static-type system that rejects all programs is sound
+    - All operations that can be used on an object of type C can also be used on an object of type C' $$\leq$$ C, e.g. fetching attribute value, invoking a method, etc.
+
+  - Completeness - all dynamically-type-correct programs will be accepted. Not possible to ensure in general
+
+  - Dynamic subtype determined by the state of the program in execution, for 'If-Then-Else', the static type may be void, or LUB(types of all branches), but the dynamic type will be the type of one branch depending on the condition
+
+  - An example of the restrictiveness of a static type system
+
+    ```C++
+    class Count {
+      	int i = 0; //default value = 0
+      	*Count inc() {
+            i = i + 1;
+          	return *this;
+      }
+    };
+    class Stock : public Count {
+    	string name; //name of the item
+    };
+
+    int main() {
+        Stock a;
+    	Stock b = a.inc();
+    	... b.name ...;
+        return 0;
+    }
+    ```
+
+    - Here `a.inc()` has static type `Count`, so it fails static type check, even though it has dynamic type `Stock`, and this expression is well-typed
+
+    - Limitation as derived classes will become unable to use `inc()` method
+
+      - Use `dynamic_cast` - returns null if not successful, else returns a pointer of the new type at run time - effectively bypass the static type system
+      - C++ allows use of templates, pass that as argument
+
+      ```C++
+      template<typename T>
+      class Count<T> {
+        	int i = 0;
+      	T inc() {
+      		i <-- i + 1;
+      		return *static_cast<T *>(this);
+          } //static_cast gets checked at compile-time!
+      };
+      class Stock : public Count<Stock>{};
+      ```
+
+      * This increases the expressiveness of the type system
+
+  - Caveats - 
+
+    - Provide an "escape" mechanism in a statically-typed system, e.g. casting
+      - Idea - Give control to programmer if asked for. If the programmer messes up, bad behaviour possible, and the language does not provide any guarantees
+    - Dynamically typed languages retrofitted with static type-checking
+      - Avoid runtime costs and to aid debugging
+      - Only best-effort, no guarantees. Some dynamic checks may remain
+    - Methods can be overridden, overloaded
+
+  ##### Error Recovery
+
+  * Detecting where errors occur is easier than in parsing, simply by introducing a new type `No_type` for use with ill-typed expressions, such that `No_type` $$\leq T$$ for all types $$T$$. 
+    * Avoids cascading type errors due to one type-error
+    * Every operation is defined for `No_Type`, with the result being `No_Type`
+  * The type hierarchy is not a tree anymore, it is a DAG with `No_type` at the bottom
+
+***
+
+
+
+### Runtime Organisation
+
+* Execution of a program is initially under the control of the operating system
+  - The OS allocates space for a program
+  - Code is loaded into part of the space
+  - OS jumps to the entry point (e.g., "main")
+* The compiler has to account for the
+  * generation of the code - *both* correct and fast, doing only one is easy
+  * correspondence between static (compile-time) and dynamic (run-time) structures
+  * storage organisation - orchestrating the use of the data area
+
+#### Data Area
+
+* The space allocated for the program is divided into - code and data. The code area contains instructions and is usually read-only, the data is used for all the other things
+
+  ##### The Stack - Activation Records
+  * Assumptions for the subsequent discussion - 
+    * Execution is sequential; control moves from one point in a program to another in a well-defined order (violated in the face of concurrency)
+    * After procedure call, control always returns to the point immediately after the call
+      - Violated in catch/throw style exceptions (an exception may escape multiple procedures before it is caught)
+      - Call/cc: call with current continuation
+  * An activation of a procedure P is an invocation of P. Accordingly, the lifetime - 
+    * of an activation of P is simply all the steps needed to execute P, including nested procedure calls
+    * of procedure activations is properly nested, and so can be represented as a tree
+    * of a variable is the portion of execution in which it is defined
+    * is a dynamic concept, unlike the scope, which is a static concept. Depends on run-time behaviour
+  * *Active* activations, due to proper nesting, can be tracked using a stack. Does not track all activations, only currently active ones. 
+    * Generally kept in the data area (in the stack), usually contiguous
+    * This stack is array-like, so all activation records are kept adjacently
+  * Activation Record / Frame - information to, keep track of for/manage an activation
+    * Need to track not only current activation info, but info of caller when needed
+    * Keep arguments to the function on stack as well as the return address/control link
+    * Keeping the return value on stack allows the caller to find the return value at a fixed offset from its own activation
+    * Tradeoffs on which part of the activation frame should be in registers and which part in memory, as well as dividing responsibilities between caller and callee
+    * The compiler must determine, at compile-time, the layout of activation records and generate code that correctly accesses locations in the activation record. Thus AR layout and the code generator must be designed together
+
+  ##### The Heap - Objects
+
+  * Persistent objects like global variables stored specially
+    * A global variable's lifetime transcends all procedure lifetimes, can't store in an AR
+      * Globals are assigned a fixed address once ("statically allocated")
+    * Depending on the language, there may be other statically allocated values
+    * Similarly, an object may be created by a procedure that outlives it, e.g. `create_new()`, that returns an object, and this should survive de-allocation of caller's AR
+    * Overall - code contains object code (read-only), static area contains data with fixed addresses (fixed sized may be writable), stack contains ARs for active procedures, which also contains locals, and heap contains all other data
+    * Heap managed using `malloc` and `free` in C, can grow/shrink dynamically like stack
+    * Usually stack and heap at opposite ends, and grow towards each other, if two regions touch, then program is out of memory.
+      * Allows programs to use areas as they see fit - big stack or big heap
+  * Alignment - low-level detail, related to word size
+    * Data is *word-aligned* if it begins at a word boundary
+    * Most machines have some alignment restrictions - undefined behaviour, performance penalties in case of poor alignment or misaligned access
+    * Padding may be needed to keep alignment, not a part of data - just unused space
+
+#### Stack Machine
+
+* Simplest model for code generation - where the only storage is stack
+  * Location of the operands/result is not explicitly stated - top of stack
+  * For an instruction `r = F(a1, a2, ..., an)`
+    * Pop n words of the top of the stack
+    * Perform the calculation `F`
+    * Push the result `r` back onto the stack
+* Contrast with pure register machine - provides only registers
+  * More efficient due to register access instead of memory
+  * Less compact instructions, e.g.`add r1,r2,r3` vs `add`. Java bytecode uses stack-based
+* Compromise - n-register stack machine. In case n = 1, register is called accumulator
+  * The answer is always stored in the accumulator
+  * Pure stack machine - `add` needs 3 mem. ops - 2 reads and a write, 1-register stack machine needs just one memory read
+  * For `r = F(a1, a2, ..., an)`, for each `ai`, evaluate it, and store result on stack. In the end, pop-off (n - 1) items of the stack, compute `r` and store result in acc. Note that `an` needn't be stored, it will be in acc. and can be used directly
+  * Invariant: after evaluating an expression `e`, the accumulator holds the result and the stack is unchanged, i.e. expression evaluation preserves the stack
+  * Also, the evaluation order is left to right which also determines the order of the operands on the stack - code gen. may depend on this. (In case of intermediate storage in registers, like for identifiers, may be independent)
+
+***
+
