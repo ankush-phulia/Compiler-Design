@@ -210,3 +210,78 @@
     * Even more space efficient, use table for NFA, $$T : Q  \times (\sum \bigcup \epsilon) \rightarrow \{Q_{i_1}, Q_{i_2}, ...\}$$, much smaller table, but expensive to simulate(must consider all possible paths)
 
 ***
+
+
+
+### Parsing
+
+* The process of creation of a parse-tree from the sequence of tokens output by the lexer. It may be implicit, needn't be output
+
+* For parsing, we require
+
+  * A language describing valid strings of tokens
+  * A method to distinguish valid from invalid strings of tokens
+
+* Limitations of regular languages for parsing
+
+  * Not powerful enough, unable to represent several common constructs like nested arithmetic constructs, nested scopes, etc. 
+  * These kinds of arbitrary-depth matched structures require unbounded memory to be maintained, not possible with FAs(with finite number of states)
+
+  #### Context-Free Languages
+
+  * A context-free grammar for a CFL can be represented as $$(\sum, N, S (\in $$ $$N), P)$$ - the terminal symbols, non-terminal symbols, start symbol and production rules
+
+  * A production rule is a finite relation $$N \rightarrow (N \bigcup \sum)^*$$, and for each rule $$X \rightarrow Y_1Y_2...Y_n$$, $$X \in N, \forall i, Y_i \in N \bigcup  \sum \bigcup \{\epsilon\}$$ 
+
+  * Terminals are called so as there are no rules to replace them; for a parser, the terminals are tokens
+
+  * A derivation of a string is a series of application of production rules on the start symbol, till no non-terminal symbols are left
+
+    * A single step looks like $$X_1X_2...X...X_n \rightarrow X_1X_2...Y_1Y_2...Y_n...X_n$$
+    * Replacing the left-most terminal at each step - left-most derivation. Similarly the right-most derivation
+
+  * CFL are expected to
+
+    * Give a parse tree in addition to the language membership query answer
+    * Handle errors gracefully, give feedback to the programmer
+    * Be implementable by tools like bison. Many grammars can generate the same language, a CFG should have a form parsable by tools
+
+  * Derivations can be represented as parse trees - terminals at the leaves and non-terminals in the interior nodes, with the start symbol at the root
+
+    * In-order traversal yields the original input
+    * Shows the association of operations, the priorities of operators
+    * A single parse-tree may have multiple derivations (two are left and right most), differ only in the order the branches were added
+
+    ##### Ambiguity in CFGs
+
+    * Multiple parse trees are possible for the same input. In this case, the grammar is said to be ambiguous. Alternately be said to be ambiguous if for a string, there exist two distinct left/right-most derivations
+
+    * Ambiguity may leave the meaning of an expression as ill-defined, e.g. arithmetic expressions. Parser can return any valid parse tree or throw error
+
+    * CFGs can be *disambiguated* via stratification, where the grammar is re-written to enforce precedence order of operations. Automatic disambiguation may be impossible
+
+    * Consider the grammar for expressions (+, * and parentheses)
+
+      > $$E \rightarrow E + E | E * E| (E)| id$$ 
+
+      Disambiguated to <a name = "+*G"> </a>
+
+        > $$E \rightarrow T|T + E$$
+        >​
+        >
+        >  $$T \rightarrow id| id * T |(E)| (E) * T$$
+
+    * CFG for IF - THEN - ELSE
+
+      > $$E \rightarrow $$if $$E$$ $$then $$ $$E | if$$ $$E$$ $$then$$ $$E$$ $$else$$ $$E| ...$$
+
+      disambiguated to
+
+      > $$E \rightarrow Matched IF|Unmatched IF$$
+      >
+      > $$MatchedIF \rightarrow if$$ $$E$$ $$then$$ $$MatchedIF$$ $$else$$ $$MatchedIF| ...$$ 
+      >
+      > $$UnmatchedIF \rightarrow if $$ $$E $$ $$then $$ $$MatchedIF |$$ $$if $$ $$E $$ $$then $$ $$UnMatchedIF |$$				  $$\ if $$$$E$$ $$then$$ $$MatchedIF$$ $$else$$ $$UnmatchedIF | ...$$ 
+
+    * Ambiguity may result in a simple, more natural grammar. Thus many tools use an ambiguous grammar paired with a precedence order of operations (declaration of associativity and priority). The parser uses these to decide which move to take in case of ambiguity
+
