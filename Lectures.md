@@ -814,3 +814,240 @@
 
 ***
 
+
+
+### Code Generation
+
+* MIPS architecture
+
+  * Prototypical Reduced Instruction Set Computer (RISC)
+  * Most operations use registers for operands and results
+  * Use `load` and `store` instructions to use values in memory
+  * 32 general purpose registers (32 bits each), including `$sp`, `$a0`, and `$t1` 
+
+* x86 architecture
+
+  * Complex Instruction Set Computer (CISC) with many more opcodes (~400 vs ~40)
+  * Opcodes often can operate on both registers and/or memory and may not need separate load/store instructions
+  * 8 general purpose registers (32 bits each) including `%esp`, `%eax`, and `%ecx` 
+  * Intel engineers felt that more opcodes and less registers is better. Use of on-chip real-estate for more functional units and logic (by saving space through a shorter register file and its connections)
+
+  ##### Invariants and Relevant Opcodes
+
+  * The accumulator is kept in MIPS register `$a0` (or x86 register `%eax`) - *holds the result*
+  * The stack is kept in memory - grows downwards towards lower addresses. It is *unchanged before and after* evaluation of expression/dispatch of function
+  * The temporary variable is kept in `$t1` for MIPS, or `%ecx` for x86
+  * For MIPS - the next location of the stack is kept in MIPS register `$sp`. The top of the stack is at address `$sp+4`. It is *preserved before and after* expression evaluation.
+  * For x86 - the top of the stack is at address `%esp`. The next location of the stack is at `%esp-4`
+  * MIPS opcodes - 
+    * `lw reg1, offset(reg2)` - reg1 = *(reg2 + offset)
+    * `sw reg1, offset(reg2)` - *(reg2 + offset) = reg1
+    * `addiu reg1, reg2, imm` - reg1 = reg2 + imm, without checking overflow
+    * `li reg1, imm` exists, but MIPS cannot store immediate value directly to memory
+  * x86 opcodes - 
+    * `movl %reg1/(memaddr1)/$imm, %reg2/(memaddr2)` - Move 32-bit word from register `reg1` (or address `memaddr1` or the immediate value itself) into `reg2` or to memory address `memaddr2`. 
+    * `add %reg1/(memaddr1)/$imm, %reg2/(memaddr2)` - 
+      * reg2/(memaddr2) = reg1/(memaddr1)/imm + reg2/(memaddr2)
+      * Overflow is always computed for both signed/unsigned arithmetic, in parallel
+    * `push %reg/(memaddr)/$imm` - \*(esp - 4) = reg/*memaddr/imm;  esp = esp - 4
+    * `pop %reg/(memaddr)/$imm` - reg/*memaddr/imm = *esp;  esp = esp + 4
+
+* Code generation, at least for expressions, can be written as a recursive descent of the AST
+
+  Code generation function `cgen()`, looks like -
+
+  ```C
+  void cgen(i) { emit "li $a0 i" }
+  void cgen(e1 + e2) {
+      cgen(e1);
+      emit "sw $a0 0($sp)";	// push onto stack
+      emit "addiu $sp $sp-4";	// increment sp
+      cgen(e2);
+      emit "lw $t1 r($sp)";
+      emit "add $a0 $t1 $a0";
+      emit "addiu $sp $sp 4";	// pop from stack
+  }
+  ```
+
+  Note : `cgen(e1+e2) = cgen(e1); "move $t1 $a0"; cgen(e2); "add $a0 $t1 $a0";` will not work, as nested calls to `cgen()` inside may clobber the register `$t1`
+
+* Code gen for conditional branches - (new instructions `beq` and `b`)
+
+  ```C
+  void cgen(if (e1 == e2) then e2 else e4) {
+      cgen(e1);
+      emit "sw $a0 0($sp)";			// code gen for e1 and push result
+      emit "addiu $sp $sp -4";		// store result of e1 onto stack
+      cgen(e2);
+      emit "lw $t1 4($sp)";			// load result of e1 into t1
+      emit "addiu $sp $sp 4";			
+      emit "beq $a0 $t1 true_branch";	 // compare e1's result with e2's (in a0)
+      ...
+      false_branch:
+      	cgen(e4);				   // cgen e4 and return
+      	emit  "b end_if";
+      true_branch:
+      	emit "cgen(e3)";		    // cgen e3 and return/fall through
+      	emit  "b end_if";
+      end_if:
+      	return;
+  }
+  ```
+
+
+* Code for function calls and function definitions depends on the layout of the AR
+
+  ##### Activation Record design
+
+  * The result is always in the accumulator and so no need to store the result in the AR
+  * The activation record holds the actual parameters - before calling a function, arguments pushed onto the stack
+  * The stack discipline guarantees that on function exit `$sp` is same as it was on entry
+    - No need for a control link (which is usually needed to find another activation).
+  * Return address is stored by the caller
+  * A pointer to the current activation is useful, lives in the register `$fp` (frame pointer)
+  * For a simple language, an AR with the caller's frame pointer, the actual parameters, and the return address suffices (in that order)
+
+* Jump instructions - 
+
+  - `jal label` - save address of next instruction to `$ra` and jump to label. `call` on x86 does this and saves return address on stack
+  - `jr reg` - jump to address stored in register
+
+* Code generation function `cgen()`, for function dispatch/call (caller side) -
+
+  ```C
+  void cgen(f(e1, e2, ..., en)) {
+      emit "sw $fp 0($sp)";	 // Build callee's AR - store own fp at top
+      emit "addiu $sp $sp -4"; // i.e. push onto stack
+      cgen(en);
+      emit "sw $a0 0($sp)";	 // save the result of args - eval each one
+      emit "addiu $sp $sp - 4";// and push onto the stack, REVERSE order
+      ...
+      cgen(e1);
+      emit "sw $a0 0($sp)";	 //	push the first argument
+      emit "addiu $sp $sp - 4"; // sp points just below
+      jal f_entry;			// jump-and-link to f_entry
+      emit "addiu $sp $sp z";	 // Pop-off the enire callee's frame, z = 4n + 4 + 4
+      emit "lw $fp 0($sp)";	 // restore the frame pointer
+  }
+  ```
+
+  * The caller saves its value of the frame pointer, the actual parameters in reverse order and the return address in register `$ra`
+  * The size of AR so far is 4n + 8 bytes = z (+ 8 not +4 as sp points to next vacant position on stack)
+
+* Code generation for function definition (callee side) -
+
+  ```C
+   void cgen(def f(x1, x2, ..., xn) = e) {
+      f_entry:
+          emit "move $fp $sp";	// fp points to base of activation of f (current sp)
+          emit "sw $ra 0($sp)";	// save return address ($ra populated by jal)
+          emit "addiu $sp $sp -4";// ins_k
+          cgen(e);	// code-gen, guaranteed to leave stack and sp in original state
+          emit "lw $ra 4($sp)";	// since sp points one below, due to ins_k
+          emit "jr $ra";		    // jump to return address stored in $ra
+   }
+  ```
+
+  * Note: the frame pointer points to the top, not bottom of the frame
+  * Either the caller or the callee, can pop-off the callee's stack frame, and restore the frame pointer
+  * Function calls have preserved the invariant that the stack would be exactly the same after the call, as it was at entry to the call
+
+* Code generation for variable reference - 
+
+  * If function parameters - they are already in AR, pushed by caller and FIXED offset from `$fp` - since it points to stored return address, `$fp + 4` is the first argument,  `$fp + 4` is second, and so on (reverse order useful here)
+  * So for argument i, `cgen(x_i) = lw $a0 4*i($fp)`
+  * Note, the location can be obtained from `$sp` as well, as long as the difference between it, and frame pointer was kept track of (extra argument to cgen() - keep track of it and call nested cgen() with appropriate changes in it)
+    * Pro - one less register to keep track of (no need for $fp)
+    * Cons - Harder to read/debug code, issues with variable length arrays, variadic functions, etc.
+
+* To summarise, the activation record must be designed together with the code generator
+
+  - Can be a *convention*(for compatibility) or can be decided at compile-time per function
+  - Any decision should account for all possible callers/callees for any callee/caller.
+
+* Production compilers -
+
+  * Emphasize keeping values in registers (optimization), especially the current stack frame
+  * Keep intermediate results in the AR (at fixed offsets for direct access)
+  * Push/Pop less from the stack (more can be more expensive as no value re-use)
+
+  ##### Temporaries
+
+  * To manage temporary values better, keep them in AR - at a fixed location within it
+
+    * Even better is to keep them in registers
+
+  * Analyze the code to see how many temporaries are needed and allocate space for that, instead of pushing/popping from stack (thus reducing *stack traffic*)
+
+  * Many of the temporaries are only needed once and not needed after that. So some of the space can be re-used for the subsequent temporaries when evaluating
+
+  * If NT(e) are the number of temporaries required to evaluate e, then - 
+
+    |                Expression Type                 |          Number of Temporaries           |
+    | :--------------------------------------------: | :--------------------------------------: |
+    |           e1 \<binary operation\> e2           |        max( NT(e1), 1 + NT(e2) )         |
+    | if e1 \<logical operation\> e2 then e3 else e4 | max( NT(e1),1 + NT(e2), NT(e3), NT(e4) ) |
+    |              id(e1, e2, ..., en)               |    max( NT(e1), NT(e2), ..., NT(en) )    |
+    |              constant/identifier               |                    0                     |
+
+    * For If-Then-Else - once the branch is decided, needn't hang onto e1 or e2
+    * For dispatch, the space for the result of ei is in the NEW activation record, so needn't count that in the space required for the current activation record
+    * For a function definition f(x1...xn) = e the AR has 2 + n + NT(e) elements - the return address, the frame pointer, n arguments and NT(e) locations for intermediate results
+
+  * Code generation must know how many temporaries are in use at each point, add argument to cgen() function - the position of the next available temporary
+
+    * The temporary area acts like a small, fixed-size stack
+    * Instead of pushing popping, all calculations done at compile time
+
+  * New cgen() becomes something like - (avoided stack manipulation instructions)
+
+    ```C
+    void cgen(e1 + e2, nt) =
+        cgen(e1, nt);
+        emit "sw $a0 nt($sp)";
+        cgen(e2, nt + 4);
+        emit "lw $t1 nt($fp)";
+        emit "add $a0 $t1 $a0";
+    ```
+
+#### Object Code Generation
+
+* If B is a subclass of A, then an object of class B can be used wherever an object of class A is expected. The code in class A works unmodified for an object of class B.
+
+* For A methods to work correctly in A and B objects,the attributes of A must be in the same "place" in each object
+
+  ##### Object Layout
+
+  * Objects are laid out in contiguous memory
+  * Each attribute stored at a fixed offset in the object. The attribute is in the same place in every object of that class. e.g. `this` points to the start offset of the object
+  * When a method is invoked, the object is `this` and the fields are the attributes
+  * Given a layout for class A, a layout for subclass B can be defined by *extending* the layout of A with additional slots for the additional attributes of B
+    * Any method that expects to finds A's attributes at certain offsets will find them there in each of the subclasses (including B) as well
+  * Given the class relationships $$A_1 \leq A_2 \leq ... \leq A_n$$, the object's attributes are laid out in the same order, starting with $$A_1$$ then $$A_2$$, ... till $$A_n$$
+  * Dispatch table - 
+    * Every class has a fixed set of methods, including inherited ones, indexed by the dispatch table - an array of method entry points
+    * A method 'f' lives at a fixed offset in the dispatch table for a class and all of its subclasses. A compiler knows all methods of a class, based on which it assigns a fixed offset for each method
+      * This offset will be identical for all overriding functions of all its subclasses
+      * Because methods can be overridden, the method for 'f' is not the same in every class, but is always at the same offset
+    * Functions kept separately as a table, instead of living within the object itself, to save memory, as methods are less likely to be different for most objects, unlike attributes. So space is saved at the cost of one extra dereference
+    * To implement a dynamic dispatch `e.f()`, 
+      * e is evaluated to get the class of the object, say A
+      * call D[O_f], where D is A's dispatch table, and O_f is f's offset
+      * In the above call, `this` is bound to A, to tell it the caller's class
+
+##### Multiple Inheritance
+
+* Let D be a class, such that $$D \leq B$$ & $$D \leq C$$
+  * The object layout of D involves laying out D's header, then B's header and attributes, then C's header and attributes, and finally D's attributes
+  * For each use of a D object in a context where D is expected:
+    - Generate code assuming that `this` points to D's header and the object layout
+  * For each use of a D object in a context where B or C is expected, 
+    - Generate code to convert D's `this` to B's `this` (by adding an offset to reach B or C's header), and then using the code generation for B or C respectively
+  * For methods:
+    - If D overrides a method of B or C, we appropriately modify B or C's dispatch table
+    - While generating dispatch code in a context where D is expected, if it is an overriding method, then index into the appropriate class (e.g., B or C)
+* In case $$ B \leq A$$ and $$C \leq A$$ as well (the diamond-case)
+  * Can solve using one level of indirection - D's header, followed by pointers to object layouts for B and C (each of which will now contain A's header and attributes), followed by D's attributes
+  * Dispatch tables will be similarly structured with two-level indirection now
+
+***
