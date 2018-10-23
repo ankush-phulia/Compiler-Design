@@ -1188,3 +1188,41 @@
   * Local optimisations, to a basic block in isolation
   * Global optimisations, to a control-flow graph, i.e. a method, in isolation
   * Inter-procedural optimisations - across method boundaries
+
+#### Local Optimisations
+
+* Optimisations on a basic block, usually the simplest. The best ones usually delete code.
+* Some local optimisations - 
+  * Algebraic Simplification - 
+    * Deletion of trivial statements like `x := x + 0` or `x := x * 1`
+    * Strength Reduction - Reducing the complexity of operation, useful if the "stronger" one has to be implemented in software, but the "weaker" one is supported natively by the ISA or is faster on hardware
+      * `x := x ** 2` to `x := x * x`
+      * `x := x * 2` to `x := x + x`
+      * `x := x * 8` to `x := x << 3`
+    * Less relevant on modern hardware, which deals with the special cases by itself
+  * Constant Folding - operations on constants done at compile-time. If `x := y op z` and `y`, `z` are constants, then `x` needn't be computed at run-time
+  * Local Dead Code Removal - elimination of unreachable basic blocks
+    * Remove code not reached from the initial block - not jumped to/fallen through
+      * `if (DEBUG) then { .... }`, the entire basic block may go
+      * Libraries provides many methods, of which few are used, so rest of code dead
+      * LHS of assignment has no further uses, then the assign. statement is dead
+    * Makes the program size smaller, possibly faster - improved spatial locality and memory cache effects
+* Static Single Assignment (SSA) Form - Intermediate code where assignment to each temporary occurs only once, i.e each temp. occurs only once on the LHS of assignment
+  * Thus, if two assignment have the same RHS, they compute the same value
+  * Common Sub-expression Elimination (CSE) - since the values of temporaries do not change, the values of the expressions involving them do not as well. 
+    * Three-address code means that at-most one operator can be on the RHS. For complex expressions, sub-expressions assigned to temporaries
+    * Thus `y := a op b ... x := a op b` becomes `y := a op b ... x := y`
+  * Copy propagation - If `x := y` occurs in basic block, replace subsequent uses of `x` with `y`. Useful for enabling constant folding (if `y` was constant) and DCE (copy statement is now dead)
+* Peep-hole Optimisation - directly applied to assembly code, typically for those that got missed at IR stage (perhaps due to local minima problem) 
+  * At the assembly-level, greater visibility into instruction costs and instruction opcodes. e.g., hardware opcodes may be higher-level than IR opcodes (CISC machines)
+  * The "peephole" is a short sequence of (usually contiguous) instructions and the optimiser replaces this sequence with another equivalent but faster one
+  * Usually written as replacement rules - `i1; i2; i3; ..; in` $$\rightarrow$$ `j1; j2; ..; jm`
+    * `move $a $b; move $b $a` $$\rightarrow$$ `move $a $b`, only if 2^nd^ instruction isn't jumped to
+    * `addiu $a $a i; addiu $a $a j` $$\rightarrow$$ `addiu $a $a (i+j)`
+  * Many (not all) basic block optimisations can be cast as peephole optimizations
+    - Algebraic Simplification - `addiu $a $b 0  ` $$\rightarrow$$ `move $a $b`
+    - Local Dead Code Elimination -  `move $a $a` $$\rightarrow$$ ` `
+    - Above two together eliminate `addiu $a $a 0`
+  * Peephole optimisations must be applied repeatedly for maximum effect
+  * Need to ensure that the replacement rules cannot cause oscillations, each replacement rule can only "improve" the code.
+* Each local optimisation can do little by itself, but optimisations interact - one optimisation may enable another. But the optimiser may also get stuck at local minimas 
