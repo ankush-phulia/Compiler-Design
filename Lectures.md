@@ -1146,3 +1146,45 @@
     - Con - *if designed well*, IR design critical for exposing optimisation opportunities
 
 ***
+
+
+
+### Optimisation
+
+* Optimization seeks to improve a program's resource utilization - execution time, code size, memory/network/disk usage, power consumption, etc, but in doing so, the answer computed by the optimised program must be the same
+
+* Largest, most complex and most compile-time-consuming part of the compiler
+
+* "Program optimisation" is grossly misnamed, code "optimisers" make no promises of working towards the optimal program, which, for a given computation is undecidable. Code "improvers" is perhaps a better term
+
+* Further discussion will be about optimisations on the IR with the language 
+
+  > $$P \rightarrow S \space P | S$$
+  >
+  > $$ S \rightarrow $$` id := id op id `| `id := op id`| `id := id`
+  >
+  > ​	| `push id` | `id := pop`
+  >
+  > ​	| `if id rel_op id goto L` | `L:` | `jump L`
+  >
+  > `op` $$\rightarrow$$ `+` | `-` | `*` | `/` | `%` | etc.
+  >
+  > `relop` $$\rightarrow$$ `<` | `>` | `==` | `!=` | etc.
+
+* Basic block - a maximal sequence of instructions with no labels, except at the first instruction and no jumps, except in the last instruction. The idea is 
+
+  * Cannot jump into a basic block (except at beginning)
+  * Cannot jump out of a basic block (except at end)
+  * A basic block is a single-entry, single-exit, straight-line code segment - once the start is reached, all the instructions inside are guaranteed to execute 
+
+* Control-Flow Graph - a directed graph with basic blocks as nodes 
+
+  * Edges between nodes (blocks), if the execution can pass from the last instruction of one to the first instruction of the other
+  * Edges can be due to `jump`s, `goto`s or simple fall-through
+  * The body of a method can be represented as a control-flow graph. There is one initial node, the entry node, and all "return" nodes are terminal
+
+* Typically three granularities of optimization - 
+
+  * Local optimisations, to a basic block in isolation
+  * Global optimisations, to a control-flow graph, i.e. a method, in isolation
+  * Inter-procedural optimisations - across method boundaries
