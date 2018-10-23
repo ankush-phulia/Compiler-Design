@@ -1226,3 +1226,46 @@
   * Peephole optimisations must be applied repeatedly for maximum effect
   * Need to ensure that the replacement rules cannot cause oscillations, each replacement rule can only "improve" the code.
 * Each local optimisation can do little by itself, but optimisations interact - one optimisation may enable another. But the optimiser may also get stuck at local minimas 
+
+#### Register Allocation
+
+* Intermediate code uses unlimited temporaries - simplifies code generation and optimization but complicates final translation to assembly
+
+  * Problem - To rewrite the intermediate code to use no more temporaries than there are machine registers
+  * Potential Solution - assign multiple temporaries to each register without changing the program behaviour, i.e. a many-to-one mapping
+
+* Live-ness Analysis - A temporary is said to be live at a point after its assignment, if it is used after that point, i.e it occurs in the RHS of some expression
+
+  * Temporaries `t1` and `t2` can share the same register if and only if at any point in the program at most one of `t1`or `t2` is live
+
+  ##### Register Interference Graph (RIG)
+
+  * Construct the RIG as follows - 
+    * A node for each temporary 
+    * Edge between two nodes if they are live simultaneously at some program point 
+
+    * RIG extracts exactly the information needed to characterize legal register assignments - two temporaries can be allocated to the same register if there is no edge between them, and gives a global picture of the register requirements
+    * Graph colouring - A colouring of a graph is an assignment of colours to nodes, such that nodes connected by an edge have different colours. A graph is *k-colourable* if it has a coloring with k colours
+      * This register allocation problem is identical to the graph-colouring problem, with the colours being the registers and the graph being the RIG
+    * Spilling - when the graph is not k-colourable, some temporaries will not fit in the registers available. Thus these temporaries are "spilled" into memory.
+      * A node is picked (using various heuristics) as a candidate for spilling. Remove the picked node and all its incident edges from the RIG.
+      * Optimistic colouring - Spill a node, k-colour the graph, try to add the node back to graph and hope the graph is still k-colourable. If it fails, no choice but to spill
+      * Allocate memory location for temporary `t`, usually on the stack frame. Call it `t_a`
+        * Before each operation using `t`, insert `t := load t_a`
+        * After each operation updating `t`, insert `store t, t_a`
+        * Rename each load/store of `t` to `t_i`, re-compute live-ness and re-try
+      * After sufficient amount of spilling, the RIG should be colourable, as the graph is being made much sparser by reducing the *live range* of variables, e.g. the new variables `t_i` are live only between `load t_i` and `store t, t_i`
+
+* Limitations of this kind of *static* register allocation - 
+
+  * All-or-nothing - does not account for variable usage of temporaries across program regions, e.g. if `t1` is used heavily in one region and sparingly in the next, spill it in the second region only
+    * Region-based register allocator - partition the program into regions, assign temporaries to registers or memory within each region, and resolve discrepancies at region boundaries. 
+      * The overall quality of the solution depends heavily on the region partitioning
+      * Heuristics include - loop region, regions based on register pressure, etc
+  * Some opcodes require only register operands. Further, other opcodes may require certain specific registers. Issues arise due to the layered, pass-by-pass nature of analysis and transformation
+    * Compilers add extra passes (like the "reloading" pass in GCC's register allocator) to resolve these, by adding instructions to spill/copy registers. 
+    * An alternative technique is to do instruction(opcode)-selection simultaneously with register-allocation. More expensive in general but can use heuristics to prune the search space while still getting most of the benefits. 
+      * Previous work on [binary translation](http://www.cse.iitd.ernet.in/~sbansal/pubs/osdi08.pdf) demonstrates an algorithm based on dynamic-programming - the performance results clearly bring out the weaknesses of the pass-by-pass register allocation approach
+
+***
+
