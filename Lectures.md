@@ -1051,3 +1051,48 @@
   * Dispatch tables will be similarly structured with two-level indirection now
 
 ***
+
+
+
+### Operational Semantics
+
+* In the definition of a programming language - 
+  * The tokens → lexical analysis
+  * The grammar → syntactic analysis 
+  * The typing rules → semantic analysis
+  * The evaluation rules → code generation and optimization
+* Previously the evaluation rules were specified indirectly, as the compilation of the program was to a stack machine which had certain evaluation rules
+* This is an over specification. The exact specification is required as that would allow more freedom in code generation and optimization. Overspecification restricts these choices
+  * Assembly-language descriptions of language implementations have irrelevant detail - use of stack machine, direction of stack growth, representation of integers, ISA of architecture, etc.
+  * Thus a complete description that is high-level and not overly restrictive is required
+* Another approach is reference implementations. Once again, there will be artifacts of the particular way it was implemented that wasn't meant to be part of the language
+* Some ways to specify language semantics
+  * Operational semantics describe program evaluation via execution rules on an *abstract machine*
+  * Denotational semantic describe the program's meaning as a mathematical function
+    - A mathematical function that maps input to output
+    - Adds complexity through functions that isn't needed for describing an implementation
+  * Axiomatic semantics describe the program's behaviour via logical formulae
+    * If execution begins in state satisfying predicate X, then it ends in state satisfying Y
+    * Foundation of many program verification systems. e.g., static analysis systems
+
+#### Inference Rules
+
+- Similar to typing rules, rules of inference for evaluation
+  - $$\frac{Context\,\vdash hypothesis_1, hypothesis_2, ..., hypothesis_n}{Context'\,\vdash\, e:v }$$, if all hypotheses are provable within the context, then conclusion, i.e. expression $$e$$, has value $$v$$ within the context $$Context'$$
+- In general, the context has the components -
+  - Environment - a mapping from variables to their locations in memory (tracks current scope)
+    - $$X(a_1=l_1, ..., a_n=l_n)$$ is an object with class $$X$$, attributes $$a_i$$, with locations $$l_i$$ - layout of the object is not specified, kept abstract
+    - Constants do not have associated locations, only values
+  - Store - a mapping from memory locations to values (objects in C++ - instances of some class)
+    - $$S' = S[v'/l]$$ is a store such that $$S'(v') = l$$ and $$S'(v) = S(v), \, v \neq v'$$
+    - Special value `void` - no operations can be done on it, implementations may use any value
+  - Current object/`this`/`self` - $$s_0$$
+- Thus the statement $$s_0, E,S \, \vdash \, e:v, \, S'$$ means that given the current object, variable environment and store, the evaluation of $$e$$, if it terminates, yields the value $$v$$, with the store changing $$S'$$
+  - Note that environment or the current object do not change, only memory does
+  - "Result" of evaluation is a value and a new store, new store models the side effects
+
+#### Evaluation Rules for C
+
+\<add rules here>
+
+***
