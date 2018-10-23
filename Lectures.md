@@ -1096,3 +1096,53 @@
 \<add rules here>
 
 ***
+
+
+
+### Intermediate Language (IR)
+
+* Quite literally, an intermediate language between the source and the target, that provides  an intermediate level of abstraction - more details than source, but fewer than target, e.g. the source language usually has no notion of registers, the IR may have them
+
+* Experience dictates use of IR, not theory really. In fact, some compilers choose to have multiple IRs, and thus multiple lowerings (of source to IR abstraction)
+
+  - Intuition - by making some decisions upfront (source to IR), optimization opportunity isn't (hopefully) affected much, but the reasoning about the final code generation is simplified (as the abstraction level is now closer to the target)
+
+* IR generally ends up losing information, e.g. loop structure converted to gotos. Ideally the abstraction lowering should not loose much information, so as to not preclude much optimisation opportunity
+
+  * Thus, the design of an IR is an art - hard to say which IR is the best (one that allows best code generation and optimisation)
+
+  #### Design Decisions in IR
+
+  * How high-level should the opcodes be?
+    - Too low-level may preclude optimization opportunity (assembly opcodes may be higher-level than IR opcodes, e.g., vector instructions)
+    - High-level IR opcodes make the IR design large and bulky and the IR starts looking almost like a CISC ISA
+    - Needs to be designed for all possible ISAs, which makes the design decisions even more crucial. So the typical design choice is to support as many opcodes as necessary for all the common optimizations on all the common ISAs
+  * The same IR may be used for multiple high-level programming languages. e.g., LLVM may be the target for both C and Java programs. This can again increase the complexity of LLVM IR, because it must retain high-level semantics of all supported languages and making it too low-level for simplicity would preclude optimisation.
+  * If one can design an IR successfully, then all the implementation related to optimization needs to be done only once for all languages, and for all ISAs supported
+
+* In the discussion that follows, it is assumed that the IR - 
+
+  * Register names or constants are operands, with no limit on temporaries (registers)
+  * Opcodes & Control structures mostly correspond to assembly equivalents, but some are higher-level like `push`, `pop`, etc.
+  * Three-Address Code - where all instructions are of the form `x = y op z` or `x = op y`, and `y` and `z` are registers or constants
+  * Each subexpression has a "name" - allowing only one expression at a time
+
+* IR code generation is very similar to assembly code generation, but unlimited temporaries to hold intermediate results make it simpler that use of limited registers/stack
+
+* When it comes to optimisations, there is the question of where to do it
+
+  * Abstract Syntax Tree
+    - Pro - Machine independent
+    - Con - Too high-level/abstract, need to have more details to be able to express the "kind" of machine for which the AST needs to be compiled, e.g. register, stack, etc
+  * Generated Assembly code
+    - Pro - Exposes optimisation opportunities
+    - Cons - 
+      - Too low level, making optimization difficult (undo/redoing certain decisions)
+      - Machine Dependent, must re-implement optimisations when re-targeting
+  * IR, if designed well -
+    - Pros -
+      - Can be machine independent as it can represent a large family of machines
+      - Can expose most optimisation opportunities
+    - Con - *if designed well*, IR design critical for exposing optimisation opportunities
+
+***
