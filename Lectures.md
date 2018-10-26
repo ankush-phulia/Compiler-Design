@@ -1430,3 +1430,27 @@
         * $$x+y \in (USED(b) \cap \sim (Latest[b] \cap \sim (Cleaned(b, out)))$$
         * It is in Latest(b) and not in Cleaned(b, out), this use of the expression does not need to be replaced by t, so let it be as it is
 
+* Phase Ordering
+
+  * One data-flow analysis can improve the results of another data-flow analysis -
+    * Performing constant propagation/folding may replace branch predicates with constant boolean values, enabling more code to be identified as unreachable
+    * Eliminating unreachable code can remove non-constant assignments to variables, thus improving the precision of constant-propagation
+  * If two or more analyses are mutually beneficial, then any ordering of the analyses in which each is run only once may be sub-optimal. Simple responses include - 
+    * Carefully choosing an order - allow the same analysis to be performed multiple times if needed
+    * Using a meta-fixed-point loop that applies all analyses in a sequence and keeps repeating it, until there is no change
+  * In the presence of loops, even the above approaches may yield sub-optimal results 
+    * When analyzing a loop, optimistic initial assumptions must be made simultaneously for all mutually beneficial analyses to reach the best solution
+    * Performing the analyses separately makes the pessimistic assumptions about the solutions of all other analyses, from which it is not possible to recover simply by iterating the separate analyses
+  * The phase-ordering problem is not simply an ordering problem, but a problem that can cause optimisation to get stuck stuck in a *local* minimum regardless of orders, as compared to a super-analysis that composes the analyses together
+
+- Optimising compilers can be though of as using a "big bag of tricks", and these "tricks" are repeatedly used until no improvement is possible
+  - The optimiser can also be stopped at any point to limit compilation time
+  - Certain properties on these transformations ensure convergence in this fixed point procedure. This means that the procedure is uni-directional in some sense of improvement and does not oscillate
+
+
+- Often, the best/fanciest optimisations are not implemented because they may be
+  - Hard to implement, too costly in compilation time
+  - Have low pay-off (even though *pay-off* is vague and hard to establish, one optimisation may enable others and this is hard to predict)
+
+***
+
