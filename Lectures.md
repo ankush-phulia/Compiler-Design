@@ -1269,3 +1269,85 @@
 
 ***
 
+
+
+#### Global Optimisations - Data Flow Analysis
+
+* Global optimisation tasks share several traits -
+
+  * Dependency on knowing a property $$X$$ at a particular point in program execution
+  * Proving $$X$$ at any point requires knowledge of the entire program
+  * Conservative analysis - If the optimization requires $$X$$ to be true, then it must be known at the program point if $$X$$ is definitely true OR cannot say anything
+* Global dataflow analysis is a standard technique for solving problems with the above characteristics. Every such analysis is specified by the following - 
+  * Domain of Values - Values that the property $$X$$ can have
+  * Direction - Flow of analysis - forwards(in direction of program exec.), or backwards
+  * Meet Operator - Calculating the values of $$X$$ at point, given several paths to/from it - must be commutative, idempotent and associative
+  * Transfer Function - Relating the values of $$X$$, across a statement (transfer of info.)
+  * Boundary Condition - Value of $$X$$ at program entry/exit (depending on direction)
+  * Initialisation - Initial value of $$X$$ for every point. Because of cycles, all points must have values at all times
+* Generally the algorithm of the analysis is a *fixed-point* computation
+  1. Set all the values for $$X$$ at the entry/exit points of program, initialise the rest
+  2. For each point, repeatedly compute $$X$$ using transfer function and meet operator
+  3. Repeat until a fixed point has been found (no change to values of $$X$$ at any point)
+* Convergence of the algorithm happens if -
+  * The domain of values satisfies the following -
+    * It is a partial order - can be set of values, set of sets of value, etc
+    * There is a $$\top$$, and a $$\bot$$ value, $$\bot < \space ... < \top$$, with a finite number of elements in between them
+  * The transfer function and meet operator are such that, the $$X_{output} < X_{input}$$ 
+  * The finiteness of the ordering ensures that for all the program points, initialised to $$\top$$, the value can change only a finite number of times, till it becomes $$\bot$$
+    * The invariant is that the value at any intermediate stage of the algorithm is always greater than the best solution value
+    * The relaxation is minimal - assuming the invariant is true for predecessors, it is guaranteed to be true for the successors
+  * Thus, the analysis run-time is linear in program size
+
+* Global Constant Propagation
+
+  * To replace a use of `x` by a constant `k`, on *every* path *to* the *use of x*, the *last* assignment to `x` must be `x := k`
+  * The specifics for the analysis, i.e. above property holds for variable `x`
+    * Domain = $$\{\bot, c, \top\}$$, with $$\bot < c < \top$$,where these represent
+      * `x` is not a constant/can't say (conservative assumption)
+      * `x ` = c, c being a constant (constants are incomparable)
+      * The statement never executes (or not yet executed so far)
+    * Direction - forward
+    * Meet operator - greatest lower bound, $$glb$$
+    * Transfer Function - $$f(x, s, out) =  \left\{\begin{array}{ll}   \top & f(x,s,in)=\top \\      c & f(x, x:=c, in) = d \space | \bot  \\      \bot & s \equiv x := g(...) \\      f(x, s, in) & s \equiv y := ... \& \space x \neq y \\\end{array} \right.$$
+    * Boundary Condition - $$f(x, entry, out) = \bot$$
+    * Initialisation - $$f(x, ..., ...) = \top$$ for all other points
+  * Now, given the global constant info. for `x`, check $$f(x, s, in) \space \forall s$$ using `x` and replace  `x` in that statement, if $$f$$ its a constant
+  * Since the value at any point can only reduces(according to the ordering), and thus change at most twice, so convergence is guaranteed
+  * Number of steps per variable = Number of $$f(...)$$ values computed * 2 = Number of program statements * 4 (two $$f$$ values per statement, in and out) 
+
+* Global Dead Code Elimination
+
+  * A variable `x` is live at a statement s if
+    * There exists a statement s' that uses `x`.
+    * There is a path from s to s', with no intervening assignment to `x`
+  * Once again, the specifics of the analysis for a variable `x`
+    * Domain = $$\{true, false\}$$ and $$true < false$$
+    * Direction - backwards
+    * Meet operator - logical OR, $$\vee$$ - live at any of the successor nodes
+    * Transfer Function - $$f(x, s, in) =  \left\{\begin{array}{ll}   true & s \equiv ... := g(x) \\      false & s \equiv x:= e \space \& \space x \notin e  \\      f(x, s, out) & x \notin s \\     \end{array} \right.$$
+    * Boundary Condition - $$f(x, ..., out) = false$$
+    * Initialisation - $$f(x, ..., ...) = false$$
+  * For the entire set of variables, the live-ness analysis is slightly different
+    * Domain = Power set of the set of all variables, the ordering is the reverse of the cardinality, i.e. $$\phi$$ is $$\top$$
+    * Direction - backwards
+    * Meet operator = Set Union, $$\bigcup$$
+    * Transfer Function - $$X_{in}[s] = GEN(s) \cup (X_{out}[s] - KILL(s))$$, where GEN(s) are the variables used, and KILL(s) are the variables assigned, in s
+    * Boundary Condition - $$X_{in}[exit] = \phi$$
+    * Initialisation - $$X_{out}[.] = \phi$$
+  * Once live-ness information is known, dead variable assignments can be eliminated
+  * Each value can change only once (false to true), so termination is guaranteed
+
+* Common Subexpression Elimination
+
+  * Specification of the analysis
+    * Domain = Power set of the set of *available expressions*, of the form `x = y op z`, ordering follows cardinality
+    * Direction - forward
+    * Meet operator - intersection, $$\bigcap$$
+    * Transfer Function - $$X_{out}[s] = GEN(s) \cup (X_{in}[s] - KILL(s))$$, where GEN(s) are the subexpressions used, KILL(s) are the ones using the LHS, in s
+    * Boundary Condition - $$X_{out}[entry] = \phi$$
+    * Initialisation - $$X_{out}[.] =\{all \space expressions\}$$
+  * SSA helps, allows maintaining a larger set of available expressions
+  * Once available expression are known at each statement entry, expressions on the RHS can be replaced by a variable (LHS of available expression)
+
+* Copy Propagation - similar to CSE, but now expression are of the form `x = y` and the substitution is of a variable, not an expression
