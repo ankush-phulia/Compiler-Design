@@ -1351,3 +1351,82 @@
   * Once available expression are known at each statement entry, expressions on the RHS can be replaced by a variable (LHS of available expression)
 
 * Copy Propagation - similar to CSE, but now expression are of the form `x = y` and the substitution is of a variable, not an expression
+
+  ##### Partial Redundancy Elimination / Lazy Code Motion
+
+  * Subsumes CSE and LICM(Loop Invariant Code Motion) among other things
+  * Care needed to handle *critical edges* - source has multiple successors and destination has multiple predecessors. Introduce a new basic block on it
+  * Pre-requisites - 
+    * Each statement is a basic block
+    * Statements added only a beginning of basic block
+    * Add a basic block on every edge with destination having multiple predecessors
+  * The algorithm determines where expressions are to be computed. Consists of four data-flow problems -
+    * Pass 1 & 2 - Optimum computation
+      * Removal of expressions not used on any execution path
+      * Removal of redundancy on every execution path
+    * Pass 3 - Operations executed as late as possible to minimise register usage
+    * Pass 4 - Remove unnecessary copy assignments
+
+  * ###### Needed Expressions
+
+    * Domain = Power set of the set of expressions (for one expression, would have been $$\{true, false\}$$ - definitely needed and not sure)
+    * Direction - backwards
+    * Meet operator - intersection, $$\bigcap$$
+    * Transfer Function - $$X_{in}[s] = USED(s) \cup (X_{out}[s] - KILL(s))$$, where GEN(s) are the subexpressions used, KILL(s) are the ones using the LHS, in s
+    * Boundary Condition - $$X_{in}[exit] = \phi$$
+    * Initialisation - $$X_{in}[.] =\{all \space expressions\}​$$
+
+    **Proposal 1** - Place the expression at the frontier of "needed expressions". But it may not eliminate redundancies and may be too early (hogs a register)
+
+  * ###### Missing Expressions
+
+    An expression is missing at program point p, if its value isn't "needed" by any basic block along all paths reaching p. Will solve some redundancy problems
+
+    * Domain = Power set of the set of expressions
+    * Direction - forward
+    * Transfer function - f(x) = $$X_{out}[s] = KILL(s) \cup (X_{in}[s] - Needed(s, in))$$. An expression is missing if it has been killed & not if its needed
+    * Meet operator - Set Union, $$\bigcup$$
+    * Boundary condition - $$X_{out}[entry] = \{all \space expressions\}$$
+    * Initialisation - $$X_{out}[.] = \phi$$
+
+    **Proposal 2** - Place the expression at the earliest point it is needed and is missing. $$Earliest(s) = Needed(s, in) \cap Missing(s, in)$$. Now in the beginning, just insert a statement `t = e` $$e \in Earliest(s)$$& replace `e` by `t`. But it may still be too early.
+
+  * ###### Postponed Expressions
+
+    An expression `e` is postponed at a program point p if for all paths leading to p, the earliest placement of `e` has been seen, but not a subsequent use
+
+    * Domain = Power set of the set of expressions
+    * Direction - forward
+    * Transfer function - $$X_{out}[s] = (Earliest(s) \cup X_{in}[s]) - USED(s)$$
+    * Meet operator - intersection, $$\bigcap$$
+    * Boundary condition - $$X_{out}[entry] = \phi$$
+    * Initialisation - $$X_{out}[.] = \{all \space expressions\}$$
+
+    Latest - frontier at the end of "postponed" propagation
+
+    - $$Latest(s) = (Earliest(s) \cup Postponed(s, in)) \cap (USED(s) \cup E)$$
+    - $$E = \bigcup_{successors(s)} (\sim Earliest(s) \and \sim Postponed(s, in)) $$
+
+  * ###### Clean-up
+
+    * Domain = Power set of the set of expressions
+    * Direction - backwards
+    * Transfer function - $$X_{out}[s] = (USED(s) \cup X_{in}[s]) - latest(s)$$
+    * Meet operator - union
+    * Boundary Condition - $$X_{in}[exit] = \phi$$
+    * Initialisation - $$X_{in}[.] =\phi$$
+
+  * Overall
+
+    * Backward pass to compute needed expressions
+    * Forward pass to compute missing expressions
+    * Earliest = intersection of needed and missing
+    * Forward pass using earliest placement to compute (can be)-postponed expressions
+    * Latest = frontier of (can be)-postponed expressions
+    * Backward pass to eliminate unused temporary variable assignments
+    * For all basic blocks b: if $$x+y \in (Latest(b) \cup Cleaned(b, out))$$:
+      * Add new `t = x+y`, at beginning of b
+      * Replace original `x + y` by `t` only if:
+        * $$x+y \in (USED(b) \cap \sim (Latest[b] \cap \sim (Cleaned(b, out)))$$
+        * It is in Latest(b) and not in Cleaned(b, out), this use of the expression does not need to be replaced by t, so let it be as it is
+
